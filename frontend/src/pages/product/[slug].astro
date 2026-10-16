@@ -115,25 +115,14 @@ const jsonLd = {
 
       {product.external_url && (
         <div class="flex flex-wrap items-center gap-3">
-          {/* Gumroad overlay: opens the Gumroad product page as an on-page
-              modal (gumroad.js binds .gumroad-button), keeping the buyer on
-              our domain until they choose "Add to cart" → Gumroad checkout. */}
-          <a
-            href={product.external_url}
-            class="btn-primary gumroad-button"
-            data-gumroad-single-product="true"
-            data-i18n="index.external_buy"
-          >
-            Beli di Gumroad
-          </a>
           <a
             href={product.external_url}
             target="_blank"
             rel="noopener noreferrer nofollow sponsored"
-            class="text-sm text-gray-500 hover:underline"
-            data-i18n="gumroad.open_tab"
+            class="btn-primary"
+            data-i18n="index.external_buy"
           >
-            Buka di tab baru
+            Beli di Gumroad
           </a>
         </div>
       )}

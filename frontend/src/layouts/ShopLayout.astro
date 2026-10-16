@@ -35,8 +35,6 @@ const pageUrl = new URL(Astro.url.pathname, Astro.site ?? 'https://shop.choirulh
         document.documentElement.lang = lang;
       })();
     </script>
-    <!-- Gumroad overlay: load once site-wide; binds .gumroad-button elements -->
-    <script is:inline src="https://gumroad.com/js/gumroad.js" async></script>
   </head>
   <body class="flex min-h-screen flex-col">
     <header class="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur">
