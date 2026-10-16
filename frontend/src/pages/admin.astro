@@ -1,0 +1,11 @@
+---
+// admin.astro — admin panel: loads /admin.js (plain JS module)
+import ShopLayout from '../layouts/ShopLayout.astro';
+---
+<ShopLayout title="Admin Panel — choirulhaq shop" description="Manage products and orders.">
+  <div id="admin-root">
+    <p class="text-gray-500" data-i18n="common.loading">Memuat…</p>
+  </div>
+</ShopLayout>
+
+<script is:inline src="/admin.js"></script>

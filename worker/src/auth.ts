@@ -8,7 +8,8 @@ import type { Env } from './db';
 const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 // PBKDF2-SHA256 — scrypt is NOT supported by workerd's Web Crypto, PBKDF2 is.
-const PBKDF2_ITERATIONS = 600_000;
+// workerd caps PBKDF2 iterations at 100_000 — verified via debug-hash endpoint.
+const PBKDF2_ITERATIONS = 100_000;
 const FORMAT = `pbkdf2$${PBKDF2_ITERATIONS}`;
 
 export function parseCookies(header: string | null | undefined): Record<string, string> {
@@ -81,7 +82,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
       keyMaterial,
       256
     );
-    const actual = `${FORMAT.split('$')[0]}$${iterations}$${parts[2]}$${b64encode(new Uint8Array(bits))}`;
+    const actual = `pbkdf2$${iterations}$${parts[2]}$${b64encode(new Uint8Array(bits))}`;
     return safeEqual(actual, stored);
   } catch {
     return false;

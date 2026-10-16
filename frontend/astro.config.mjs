@@ -7,7 +7,7 @@ export default defineConfig({
     enabled: false,
   },
   build: {
-    format: 'directory',
+    format: 'file',
   },
   vite: {
     plugins: [tailwindcss()],

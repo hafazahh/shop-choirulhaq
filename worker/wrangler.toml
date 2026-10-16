@@ -4,10 +4,6 @@
 # and KV backed by .wrangler/state — the placeholder IDs below are only used
 # against the real Cloudflare API.
 #
-# Before first deploy, run (each updates this file with the real ID):
-#   wrangler d1 create shop-db
-#   wrangler kv namespace create CART_KV
-
 name = "shop-worker"
 main = "src/index.ts"
 compatibility_date = "2026-10-15"
@@ -16,17 +12,20 @@ compatibility_date = "2026-10-15"
 [[d1_databases]]
 binding = "DB"
 database_name = "shop-db"
-database_id = "00000000000000000000000000000000"
+database_id = "aebe9961-59ca-4000-a6c0-b89aab1cee3d"
 
 # KV — cart state (cart:<cartId> -> JSON)
 [[kv_namespaces]]
 binding = "CART_KV"
-id = "000000000000000000000000000000000"
+id = "574020d858b54e4489ae7dd944e67e76"
+
+[vars]
+ENVIRONMENT = "production"
+SITE_URL = "https://shop.choirulhaq.com"
+
+# Custom domain — set via dashboard (Workers & Pages → shop-worker → Custom domains)
 
 # Astro build output — served for every non-API route
 [assets]
 binding = "ASSETS"
 directory = "../frontend/dist"
-
-# Optional: serve on a custom domain instead of the workers.dev URL:
-# route = { pattern = "shop.choirulhaq.com/*", zone_name = "choirulhaq.com", custom_domain = true }

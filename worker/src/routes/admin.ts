@@ -25,7 +25,7 @@ admin.post('/login', async (c) => {
     password_hash: string;
   }>();
   // Always run a dummy hash comparison to blunt user enumeration timing
-  const hash = row?.password_hash ?? 'pbkdf2$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  const hash = row?.password_hash ?? 'pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
   const ok = await verifyPassword(password, hash);
   if (!row || !ok) return c.json({ error: 'Invalid email or password.' }, 401);
 
