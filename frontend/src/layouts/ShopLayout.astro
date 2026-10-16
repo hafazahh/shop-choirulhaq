@@ -1,0 +1,66 @@
+---
+// ShopLayout.astro — base layout: header (logo, cart, language), footer,
+// global CSS, and the anti-FLOUC language bootstrap.
+import '../styles/global.css';
+import CartWidget from '../components/CartWidget.astro';
+import LanguageSwitcher from '../components/LanguageSwitcher.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Digital products by Choirul Haq — software, templates, and ebooks.' } = Astro.props;
+const pageUrl = new URL(Astro.url.pathname, Astro.site ?? 'https://shop.choirulhaq.com');
+---
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={pageUrl.href} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="choirulhaq shop" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={pageUrl.href} />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script is:inline>
+      // Apply saved language before first paint (default: Indonesian)
+      (function () {
+        var lang = localStorage.getItem('lang') === 'en' ? 'en' : 'id';
+        document.documentElement.lang = lang;
+      })();
+    </script>
+    <!-- Gumroad overlay: load once site-wide; binds .gumroad-button elements -->
+    <script is:inline src="https://gumroad.com/js/gumroad.js" async></script>
+  </head>
+  <body class="flex min-h-screen flex-col">
+    <header class="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur">
+      <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+        <a href="/" class="flex items-center gap-2">
+          <img src="/favicon.svg" alt="" class="h-8 w-8" width="32" height="32" />
+          <span class="text-lg font-bold tracking-tight text-gray-900">choirulhaq <span class="text-brand-600">shop</span></span>
+        </a>
+        <div class="flex items-center gap-3">
+          <LanguageSwitcher />
+          <CartWidget />
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <slot />
+    </main>
+
+    <footer class="border-t border-gray-200 bg-white">
+      <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-sm text-gray-500 sm:flex-row">
+        <p data-i18n="footer.tag">Dibuat dengan Astro + Cloudflare</p>
+        <p>© {new Date().getFullYear()} Choirul Haq. All rights reserved.</p>
+      </div>
+    </footer>
+  </body>
+</html>

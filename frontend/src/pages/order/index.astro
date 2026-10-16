@@ -1,0 +1,119 @@
+---
+// order/index.astro — order confirmation page (client-rendered).
+import ShopLayout from '../../layouts/ShopLayout.astro';
+import { BANK_ACCOUNTS } from '../../lib/constants';
+---
+<ShopLayout title="Konfirmasi Pesanan — choirulhaq shop" description="Payment instructions for your order.">
+  <div id="order-root">
+    <p class="text-gray-500" data-i18n="cart.loading">Memuat keranjang…</p>
+  </div>
+</ShopLayout>
+
+<script>
+  import { api, formatPrice } from '../../lib/api';
+  import { BANK_ACCOUNTS } from '../../lib/constants';
+
+  const root = document.getElementById('order-root')!;
+
+  const statusText: Record<string, [string, string]> = {
+    pending: ['order.pending', 'Menunggu Pembayaran'],
+    paid: ['order.paid', 'Pembayaran Dikonfirmasi'],
+    delivered: ['order.delivered', 'Terkirim'],
+    cancelled: ['order.cancelled', 'Dibatalkan'],
+    refunded: ['order.refunded', 'Dana Dikembalikan'],
+  };
+
+  function esc(s: string): string {
+    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  }
+
+  function render(order: Awaited<ReturnType<typeof api.getOrder>>['order']): void {
+    const [statusKey, statusFallback] = statusText[order.status] ?? [statusText.pending[0], order.status];
+    const paidConfirmed = order.payment_proof === 'customer_confirmed';
+    root.innerHTML = `
+      <div class="mx-auto max-w-2xl">
+        <div class="card p-8">
+          <p class="mb-1 text-sm font-semibold uppercase tracking-widest text-brand-600" data-i18n="order.title">Konfirmasi Pesanan</p>
+          <h1 class="mb-6 text-2xl font-extrabold text-gray-900" data-i18n="order.thanks">Terima kasih! Pesanan Anda telah dibuat.</h1>
+
+          <dl class="mb-6 grid gap-3 text-sm sm:grid-cols-2">
+            <div class="rounded-lg bg-gray-50 p-3">
+              <dt class="text-gray-500" data-i18n="order.id">ID Pesanan</dt>
+              <dd class="font-mono font-semibold text-gray-900">${esc(order.id)}</dd>
+            </div>
+            <div class="rounded-lg bg-gray-50 p-3">
+              <dt class="text-gray-500" data-i18n="order.status">Status</dt>
+              <dd>
+                <span class="badge ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : order.status === 'paid' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}"
+                      data-i18n="${statusKey}">${statusFallback}</span>
+              </dd>
+            </div>
+          </dl>
+
+          <h2 class="mb-2 font-bold text-gray-900" data-i18n="order.items">Item</h2>
+          <ul class="mb-4 divide-y divide-gray-100 text-sm">
+            ${order.items.map((i) => `
+              <li class="flex items-center justify-between py-2">
+                <span class="text-gray-700">${esc(i.name)} × ${i.qty}</span>
+                <span class="font-medium">${formatPrice(i.price_cents * i.qty, order.currency)}</span>
+              </li>`).join('')}
+          </ul>
+          <div class="mb-6 flex items-center justify-between border-t border-gray-200 pt-3 text-lg font-bold text-gray-900">
+            <span data-i18n="cart.total">Total</span>
+            <span>${formatPrice(order.total_cents, order.currency)}</span>
+          </div>
+
+          <h2 class="mb-3 font-bold text-gray-900" data-i18n="order.instructions_title">Instruksi Pembayaran</h2>
+          <p class="mb-4 text-sm text-gray-600" data-i18n="order.instructions">Silakan transfer total ke salah satu rekening berikut, lalu klik tombol di bawah setelah membayar.</p>
+          <div class="mb-6 grid gap-3 sm:grid-cols-2">
+            ${BANK_ACCOUNTS.map((b) => `
+              <div class="rounded-lg border border-gray-200 p-4 text-sm">
+                <p class="font-semibold text-gray-900">${esc(b.bank)}</p>
+                <p class="font-mono text-gray-700">${esc(b.account)}</p>
+                <p class="text-gray-500"><span data-i18n="order.account_name">Atas Nama</span>: ${esc(b.account_name)}</p>
+              </div>`).join('')}
+          </div>
+
+          ${order.status === 'pending' && !paidConfirmed ? `
+            <button id="paid-btn" class="btn-primary w-full" data-i18n="order.paid_button">Saya Sudah Bayar</button>` : ''}
+          ${paidConfirmed ? `
+            <p class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800" data-i18n="order.paid_done">
+              Konfirmasi pembayaran terkirim. Admin akan memverifikasi transfer Anda.
+            </p>` : ''}
+          ${order.status === 'delivered' ? `
+            <p class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+              Order delivered. Check your email (${esc(order.customer_email)}) for the download link.
+            </p>` : ''}
+
+          <a href="/" class="mt-6 block text-center text-sm font-medium text-brand-600 hover:underline">← Kembali ke toko</a>
+        </div>
+      </div>`;
+
+    const paidBtn = document.getElementById('paid-btn');
+    if (paidBtn) {
+      paidBtn.addEventListener('click', async () => {
+        paidBtn.disabled = true;
+        paidBtn.textContent = 'Memproses…';
+        try {
+          const res = await api.confirmPayment(order.id);
+          render(res.order);
+        } catch (err) {
+          alert(err instanceof Error ? err.message : 'Failed');
+          paidBtn.disabled = false;
+        }
+      });
+    }
+  }
+
+  async function load(): Promise<void> {
+    const id = window.location.pathname.split('/').filter(Boolean).pop() ?? '';
+    try {
+      const order = await api.getOrder(id);
+      render(order);
+    } catch {
+      root.innerHTML = `<div class="card p-8 text-center"><p class="mb-4 text-gray-600" data-i18n="order.not_found">Pesanan tidak ditemukan.</p><a href="/" class="btn-primary">Kembali ke toko</a></div>`;
+    }
+  }
+
+  load();
+</script>

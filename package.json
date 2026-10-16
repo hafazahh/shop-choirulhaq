@@ -1,0 +1,14 @@
+{
+  "name": "shop-choirulhaq",
+  "private": true,
+  "version": "0.1.0",
+  "description": "shop.choirulhaq.com — Astro frontend + Cloudflare Worker (Hono) API + D1 + KV",
+  "scripts": {
+    "setup": "npm --prefix frontend install && npm --prefix worker install",
+    "build": "npm --prefix frontend run build",
+    "db:setup": "node scripts/seed.mjs",
+    "dev:worker": "npm --prefix worker run dev",
+    "dev": "npm run build && npm --prefix worker run dev",
+    "start": "npm run dev"
+  }
+}

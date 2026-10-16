@@ -1,0 +1,32 @@
+# Cloudflare Worker — API + static hosting for shop.choirulhaq.com
+#
+# Local dev works out of the box: `wrangler dev` spins up local D1 (SQLite)
+# and KV backed by .wrangler/state — the placeholder IDs below are only used
+# against the real Cloudflare API.
+#
+# Before first deploy, run (each updates this file with the real ID):
+#   wrangler d1 create shop-db
+#   wrangler kv namespace create CART_KV
+
+name = "shop-worker"
+main = "src/index.ts"
+compatibility_date = "2026-10-15"
+
+# D1 — products, orders, admin users, sessions
+[[d1_databases]]
+binding = "DB"
+database_name = "shop-db"
+database_id = "00000000000000000000000000000000"
+
+# KV — cart state (cart:<cartId> -> JSON)
+[[kv_namespaces]]
+binding = "CART_KV"
+id = "000000000000000000000000000000000"
+
+# Astro build output — served for every non-API route
+[assets]
+binding = "ASSETS"
+directory = "../frontend/dist"
+
+# Optional: serve on a custom domain instead of the workers.dev URL:
+# route = { pattern = "shop.choirulhaq.com/*", zone_name = "choirulhaq.com", custom_domain = true }

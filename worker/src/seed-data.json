@@ -1,0 +1,105 @@
+{
+  "adminEmail": "admin@choirulhaq.com",
+  "products": [
+    {
+      "id": "p_logicsim",
+      "slug": "logic-sim-pro",
+      "name": "LogicSim Pro",
+      "short_description": "Interactive digital logic simulator that runs entirely in your browser. Learn logic gates without installing anything.",
+      "description": "LogicSim Pro is a browser-based digital logic simulator for students and hobbyists. Design circuits with logic gates, flip-flops, and breadboards on an interactive canvas, then run real-time simulation with animated signals. No installation required — everything runs in any modern browser.",
+      "price_cents": 2999,
+      "currency": "USD",
+      "category": "software",
+      "thumbnail_url": null,
+      "screenshots": [],
+      "features": [
+        "Interactive drag-and-drop circuit builder",
+        "8+ logic gate types, multiplexers and flip-flops",
+        "Real-time simulation with animated signals",
+        "No installation — runs in any modern browser",
+        "Export and share your circuits"
+      ],
+      "external_url": "https://choirul70.gumroad.com/l/logic-simulator",
+      "is_real": 0,
+      "active": 1,
+      "sort_order": 1,
+      "seo_title": "LogicSim Pro — Digital Logic Simulator",
+      "seo_description": "Design and simulate digital logic circuits in your browser. Interactive gates, flip-flops, and real-time simulation."
+    },
+    {
+      "id": "p_astrokit",
+      "slug": "astro-portfolio-kit",
+      "name": "Astro Portfolio Starter Kit",
+      "short_description": "Production-ready portfolio template built with Astro + Tailwind. Fast, SEO-friendly, and easy to customize.",
+      "description": "A personal portfolio template built with Astro and Tailwind CSS v4. Ships with project pages, bilingual ID/EN switching, optimized Core Web Vitals, and a one-command Cloudflare deployment config. Personalize colors, content, and sections without touching the build pipeline.",
+      "price_cents": 1900,
+      "currency": "USD",
+      "category": "templates",
+      "thumbnail_url": null,
+      "screenshots": [],
+      "features": [
+        "Astro + Tailwind CSS v4 stack",
+        "Bilingual ID/EN with one click",
+        "Optimized for Core Web Vitals",
+        "One-command deploy to Cloudflare",
+        "Typed with TypeScript throughout"
+      ],
+      "external_url": null,
+      "is_real": 0,
+      "active": 1,
+      "sort_order": 2,
+      "seo_title": "Astro Portfolio Starter Kit — Fast Personal Site Template",
+      "seo_description": "Production-ready Astro + Tailwind portfolio template with bilingual i18n and one-command Cloudflare deploy."
+    },
+    {
+      "id": "p_pythonbook",
+      "slug": "python-dari-nol",
+      "name": "Belajar Python dari Nol",
+      "short_description": "Panduan Python lengkap untuk pemula absolut — dari instalasi sampai proyek pertama Anda.",
+      "description": "Panduan bahasa Indonesia untuk belajar Python dari dasar: variabel, struktur data, fungsi, pemrograman berorientasi objek, hingga membangun proyek nyata. Dilengkapi lebih dari 40 latihan dengan solusi dan studi kasus yang bisa langsung dipraktikkan.",
+      "price_cents": 999,
+      "currency": "USD",
+      "category": "ebooks",
+      "thumbnail_url": null,
+      "screenshots": [],
+      "features": [
+        "40+ latihan lengkap dengan solusi",
+        "Studi kasus membangun proyek nyata",
+        "Bahasa Indonesia yang mudah dipahami",
+        "Format PDF dan ePub",
+        "Akses update selamanya"
+      ],
+      "external_url": null,
+      "is_real": 0,
+      "active": 1,
+      "sort_order": 3,
+      "seo_title": "Belajar Python dari Nol — Ebook Panduan Lengkap",
+      "seo_description": "Panduan Python berbahasa Indonesia untuk pemula absolut: 40+ latihan, studi kasus, dan proyek nyata."
+    },
+    {
+      "id": "p_notionpack",
+      "slug": "notion-productivity-pack",
+      "name": "Notion Productivity Pack",
+      "short_description": "Pack template Notion: manajemen tugas, habit tracker, jurnal, dan second brain.",
+      "description": "A curated set of Notion templates to run your personal knowledge management: a task manager, habit tracker with streaks, weekly planner, and a PARA-based second brain. Includes setup video tutorials so you can be productive in under an hour.",
+      "price_cents": 1499,
+      "currency": "USD",
+      "category": "templates",
+      "thumbnail_url": null,
+      "screenshots": [],
+      "features": [
+        "5 ready-to-use Notion templates",
+        "PARA method setup guide",
+        "Habit tracker with streak tracking",
+        "Weekly review and planning system",
+        "Setup video tutorials included"
+      ],
+      "external_url": null,
+      "is_real": 0,
+      "active": 1,
+      "sort_order": 4,
+      "seo_title": "Notion Productivity Pack — Task, Habit & Second Brain Templates",
+      "seo_description": "Ready-to-use Notion templates for tasks, habits, weekly planning, and a PARA-based second brain."
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+---
+// checkout.astro — checkout form (name, email) + order summary.
+// On success → /order/<id> confirmation page.
+import ShopLayout from '../layouts/ShopLayout.astro';
+import { BANK_ACCOUNTS } from '../lib/constants';
+---
+<ShopLayout title="Checkout — choirulhaq shop" description="Complete your order with manual bank transfer.">
+  <h1 class="mb-8 text-3xl font-extrabold tracking-tight text-gray-900" data-i18n="checkout.title">Checkout</h1>
+  <div id="checkout-root">
+    <p class="text-gray-500" data-i18n="cart.loading">Memuat keranjang…</p>
+  </div>
+</ShopLayout>
+
+<script>
+  import { api, formatPrice } from '../lib/api';
+  import { BANK_ACCOUNTS } from '../lib/constants';
+  import { getLocalCart, saveLocalCart } from '../lib/cart';
+  import { flatT, getLang } from '../i18n/index';
+
+  const root = document.getElementById('checkout-root')!;
+
+  function renderEmpty(): void {
+    root.innerHTML = `
+      <div class="card flex flex-col items-center gap-4 p-12 text-center">
+        <p class="text-lg text-gray-600" data-i18n="cart.empty">Keranjang Anda kosong.</p>
+        <a href="/" class="btn-primary" data-i18n="cart.browse">Belanja Sekarang</a>
+      </div>`;
+  }
+
+  function renderCheckout(summaryHtml: string): void {
+    root.innerHTML = `
+      <div class="grid gap-8 lg:grid-cols-3">
+        <form id="checkout-form" class="card flex flex-col gap-4 p-6 lg:col-span-2">
+          <h2 class="text-lg font-bold text-gray-900" data-i18n="checkout.summary">Ringkasan Pesanan</h2>
+          <div id="summary" class="mb-2">${summaryHtml}</div>
+          <div>
+            <label for="name" class="label" data-i18n="checkout.name">Nama Lengkap</label>
+            <input id="name" name="name" type="text" required minlength="2" class="input" placeholder="Nama lengkap Anda" autocomplete="name" />
+          </div>
+          <div>
+            <label for="email" class="label" data-i18n="checkout.email">Email</label>
+            <input id="email" name="email" type="email" required class="input" placeholder="you@example.com" autocomplete="email" />
+          </div>
+          <p class="text-xs text-gray-500" data-i18n="checkout.notice">Dengan membuat pesanan, Anda akan menerima instruksi pembayaran di halaman konfirmasi.</p>
+          <div class="flex items-center gap-3">
+            <button type="submit" id="submit-btn" class="btn-primary" data-i18n="checkout.place">Buat Pesanan</button>
+            <a href="/cart" class="btn-secondary" data-i18n="checkout.back_cart">← Kembali ke keranjang</a>
+          </div>
+          <p id="form-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></p>
+        </form>
+        <aside class="card h-fit p-6">
+          <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-gray-500" data-i18n="order.instructions_title">Instruksi Pembayaran</h2>
+          <ul class="flex flex-col gap-3 text-sm text-gray-700">
+            ${BANK_ACCOUNTS.map((b) => `
+              <li class="rounded-lg bg-gray-50 p-3">
+                <span class="font-semibold">${b.bank}</span> — ${b.account}
+                <span class="block text-gray-500">${b.account_name}</span>
+              </li>`).join('')}
+          </ul>
+        </aside>
+      </div>`;
+
+    document.getElementById('checkout-form')!.addEventListener('submit', submit);
+  }
+
+  async function submit(ev: Event): Promise<void> {
+    ev.preventDefault();
+    const btn = document.getElementById('submit-btn') as HTMLButtonElement;
+    const errBox = document.getElementById('form-error')!;
+    btn.disabled = true;
+    btn.textContent = 'Memproses…';
+    errBox.classList.add('hidden');
+    try {
+      const cart = await api.getCart();
+      const order = await api.checkout(
+        (document.getElementById('name') as HTMLInputElement).value,
+        (document.getElementById('email') as HTMLInputElement).value,
+        cart.cart_id
+      );
+      saveLocalCart({ items: [], cart_id: null });
+      window.location.href = `/order/${order.id}`;
+    } catch (err) {
+      errBox.textContent = err instanceof Error ? err.message : 'Checkout failed';
+      errBox.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = flatT(getLang(), 'checkout.place');
+    }
+  }
+
+  async function load(): Promise<void> {
+    try {
+      const cart = await api.getCart();
+      if (cart.items.length === 0) {
+        renderEmpty();
+        return;
+      }
+      const summary = `
+        <ul class="divide-y divide-gray-100">
+          ${cart.items.map((line) => `
+            <li class="flex items-center justify-between py-2 text-sm">
+              <span class="text-gray-700">${line.name} × ${line.qty}</span>
+              <span class="font-medium">${formatPrice(line.line_total, line.currency)}</span>
+            </li>`).join('')}
+        </ul>
+        <div class="mt-2 flex items-center justify-between border-t border-gray-200 pt-3 text-lg font-bold text-gray-900">
+          <span data-i18n="cart.total">Total</span>
+          <span>${formatPrice(cart.total_cents, 'USD')}</span>
+        </div>`;
+      renderCheckout(summary);
+    } catch (err) {
+      root.innerHTML = `<div class="card p-8 text-center"><p class="mb-4 text-gray-600">${err instanceof Error ? err.message : 'Failed to load checkout'}</p><a href="/cart" class="btn-secondary" data-i18n="common.retry">Coba Lagi</a></div>`;
+    }
+  }
+
+  load();
+</script>

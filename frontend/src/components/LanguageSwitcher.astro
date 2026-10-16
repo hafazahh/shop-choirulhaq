@@ -1,0 +1,41 @@
+---
+// LanguageSwitcher.astro — client-side language toggle (ID/EN).
+// Follows the profile-site pattern: data-i18n attributes + localStorage,
+// shared flat dictionary imported from src/i18n/dictionaries.ts.
+---
+<div class="flex items-center gap-1 rounded-lg border border-gray-300 bg-white p-1 text-xs font-semibold">
+  <button data-lang-btn="id" class="rounded px-2 py-1 transition-colors hover:bg-gray-100" aria-label="Bahasa Indonesia">ID</button>
+  <button data-lang-btn="en" class="rounded px-2 py-1 transition-colors hover:bg-gray-100" aria-label="English">EN</button>
+</div>
+
+<script>
+  import { dictionaries, type Lang } from '../i18n/dictionaries';
+
+  function getLang(): Lang {
+    return localStorage.getItem('lang') === 'en' ? 'en' : 'id';
+  }
+
+  function applyLang(lang: Lang): void {
+    document.querySelectorAll('[data-i18n]').forEach((el) => {
+      const key = el.getAttribute('data-i18n');
+      if (key && (dictionaries[lang] as Record<string, string>)[key]) {
+        (el as HTMLElement).textContent = (dictionaries[lang] as Record<string, string>)[key];
+      }
+    });
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-lang-btn]').forEach((btn) => {
+      btn.classList.toggle('bg-brand-100', btn.getAttribute('data-lang-btn') === lang);
+      btn.classList.toggle('text-brand-700', btn.getAttribute('data-lang-btn') === lang);
+    });
+  }
+
+  document.querySelectorAll('[data-lang-btn]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const lang = (btn as HTMLElement).getAttribute('data-lang-btn') as Lang;
+      localStorage.setItem('lang', lang);
+      applyLang(lang);
+    });
+  });
+
+  applyLang(getLang());
+</script>

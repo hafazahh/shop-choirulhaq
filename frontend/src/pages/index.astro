@@ -1,0 +1,81 @@
+---
+// index.astro — storefront home. Products are fetched from the API AT BUILD
+// time (SHOP_API_ORIGIN, default http://localhost:8787) so the grid and its
+// SEO meta are server-rendered. If the API is unreachable the build still
+// succeeds with an empty grid (see README).
+import ShopLayout from '../layouts/ShopLayout.astro';
+import ProductCard from '../components/ProductCard.astro';
+
+const API = process.env.SHOP_API_ORIGIN ?? 'http://localhost:8787';
+
+interface Product {
+  id: string;
+  slug: string;
+  name: string;
+  short_description: string | null;
+  price_cents: number;
+  currency: string;
+  category: string | null;
+  is_real: number;
+}
+
+let products: Product[] = [];
+try {
+  const res = await fetch(`${API}/api/products`);
+  if (res.ok) {
+    const data = (await res.json()) as { products: Product[] };
+    products = data.products;
+  } else {
+    console.warn(`[shop] product API returned ${res.status} — building with empty product list`);
+  }
+} catch (err) {
+  console.warn('[shop] product API unreachable at build time — building with empty product list', err);
+}
+---
+<ShopLayout title="choirulhaq shop — Digital Products" description="Quality handmade digital products: software, templates, and ebooks by Choirul Haq.">
+  <section class="mb-12 rounded-3xl bg-gradient-to-br from-brand-600 to-indigo-700 px-6 py-14 text-center text-white sm:px-12">
+    <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-brand-100" data-i18n="hero.badge">Toko Digital Choirul Haq</p>
+    <h1 class="mb-4 text-4xl font-extrabold tracking-tight sm:text-5xl" data-i18n="hero.title">Produk Digital Berkualitas</h1>
+    <p class="mx-auto max-w-2xl text-brand-100" data-i18n="hero.subtitle">Software, template, dan ebook buatan sendiri — siap pakai, tanpa langganan.</p>
+    <a href="#products" class="btn mt-8 bg-white text-brand-700 hover:bg-brand-50" data-i18n="hero.cta">Lihat Produk</a>
+  </section>
+
+  <section id="products">
+    <h2 class="mb-6 text-2xl font-bold text-gray-900" data-i18n="index.products_title">Semua Produk</h2>
+    {products.length > 0 ? (
+      <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {products.map((p) => <ProductCard product={p} />)}
+      </div>
+    ) : (
+      <p class="text-gray-500" data-i18n="index.empty">Belum ada produk.</p>
+    )}
+  </section>
+</ShopLayout>
+
+<script>
+  import { api, type Product } from '../lib/api';
+  import { addLocalItem, saveLocalCart } from '../lib/cart';
+
+  // Live "add to cart" for purchasable (real) products — the demo products
+  // show Coming Soon and have no button (per plan Q3).
+  document.querySelectorAll<HTMLButtonElement>('[data-add-cart]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const productId = btn.getAttribute('data-add-cart')!;
+      btn.disabled = true;
+      try {
+        const cart = await api.addToCart(productId, 1);
+        addLocalItem(productId, 1);
+        saveLocalCart({ items: [], cart_id: cart.cart_id }); // cart_id from KV is authoritative
+        const badge = document.getElementById('cart-count');
+        if (badge) {
+          badge.textContent = String(cart.item_count);
+          badge.style.display = 'flex';
+        }
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to add to cart');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+</script>

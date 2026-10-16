@@ -1,0 +1,19 @@
+{
+  "name": "shop-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types --env-interface Env src/env.d.ts"
+  },
+  "dependencies": {
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261006.1",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.3.0"
+  }
+}

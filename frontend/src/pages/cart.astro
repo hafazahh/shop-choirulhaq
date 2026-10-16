@@ -1,0 +1,118 @@
+---
+// cart.astro — cart page (client-rendered from the KV cart API).
+import ShopLayout from '../layouts/ShopLayout.astro';
+---
+<ShopLayout title="Keranjang Belanja — choirulhaq shop" description="Review your cart before checkout.">
+  <h1 class="mb-8 text-3xl font-extrabold tracking-tight text-gray-900" data-i18n="cart.title">Keranjang Belanja</h1>
+  <div id="cart-root">
+    <p class="text-gray-500" data-i18n="cart.loading">Memuat keranjang…</p>
+  </div>
+</ShopLayout>
+
+<script>
+  import { api, formatPrice, type CartPayload } from '../lib/api';
+  import { clearLocalCart, saveLocalCart } from '../lib/cart';
+
+  const root = document.getElementById('cart-root')!;
+
+  function renderCart(cart: CartPayload): void {
+    if (cart.items.length === 0) {
+      root.innerHTML = `
+        <div class="card flex flex-col items-center gap-4 p-12 text-center">
+          <p class="text-lg text-gray-600" data-i18n="cart.empty">Keranjang Anda kosong.</p>
+          <a href="/" class="btn-primary" data-i18n="cart.browse">Belanja Sekarang</a>
+        </div>`;
+      return;
+    }
+
+    root.innerHTML = `
+      <div class="grid gap-8 lg:grid-cols-3">
+        <div class="lg:col-span-2">
+          <ul class="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
+            ${cart.items.map((line) => `
+              <li class="flex items-center gap-4 p-4" data-line="${line.product_id}">
+                <div class="min-w-0 flex-1">
+                  <a href="/product/${line.slug}" class="block truncate font-semibold text-gray-900 hover:text-brand-600">${line.name}</a>
+                  <p class="text-sm text-gray-500">${formatPrice(line.price_cents, line.currency)}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button class="btn-secondary qty-dec px-2 py-1" data-pid="${line.product_id}" aria-label="decrease">−</button>
+                  <span class="w-8 text-center font-medium qty-val">${line.qty}</span>
+                  <button class="btn-secondary qty-inc px-2 py-1" data-pid="${line.product_id}" aria-label="increase">+</button>
+                </div>
+                <span class="w-24 text-right font-semibold">${formatPrice(line.line_total, line.currency)}</span>
+                <button class="btn-secondary px-2 py-1 text-red-600 line-remove" data-pid="${line.product_id}" data-i18n="cart.remove">Hapus</button>
+              </li>`).join('')}
+          </ul>
+          <div class="mt-4 flex justify-between">
+            <button id="clear-cart" class="btn-secondary text-red-600" data-i18n="cart.clear">Kosongkan Keranjang</button>
+            <a href="/" class="text-sm font-medium text-brand-600 hover:underline">← Lanjut belanja</a>
+          </div>
+        </div>
+
+        <aside class="card h-fit p-6">
+          <h2 class="mb-4 text-lg font-bold text-gray-900" data-i18n="cart.total">Total</h2>
+          <div class="mb-2 flex items-center justify-between text-2xl font-extrabold text-gray-900">
+            <span data-i18n="cart.total">Total</span>
+            <span id="cart-total">${formatPrice(cart.total_cents, 'USD')}</span>
+          </div>
+          <p class="mb-6 text-xs text-gray-500" data-i18n="cart.notes">Total dihitung dari data produk terbaru di server.</p>
+          <a href="/checkout" class="btn-primary w-full" data-i18n="cart.checkout">Lanjut ke Checkout</a>
+        </aside>
+      </div>`;
+
+    // wire qty buttons
+    root.querySelectorAll<HTMLButtonElement>('.qty-inc').forEach((btn) =>
+      btn.addEventListener('click', () => changeQty(btn.getAttribute('data-pid')!, +1))
+    );
+    root.querySelectorAll<HTMLButtonElement>('.qty-dec').forEach((btn) =>
+      btn.addEventListener('click', () => changeQty(btn.getAttribute('data-pid')!, -1))
+    );
+    root.querySelectorAll<HTMLButtonElement>('.line-remove').forEach((btn) =>
+      btn.addEventListener('click', () => removeLine(btn.getAttribute('data-pid')!))
+    );
+    const clearBtn = document.getElementById('clear-cart');
+    clearBtn?.addEventListener('click', async () => {
+      await api.clearCart();
+      clearLocalCart();
+      load();
+    });
+  }
+
+  async function changeQty(productId: string, delta: number): Promise<void> {
+    const line = root.querySelector(`[data-line="${productId}"]`);
+    if (!line) return;
+    const qty = Number(line.querySelector('.qty-val')!.textContent) + delta;
+    try {
+      const cart = await api.updateCartItem(productId, qty);
+      saveLocalCart({ items: [], cart_id: cart.cart_id });
+      renderCart(cart);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update cart');
+    }
+  }
+
+  async function removeLine(productId: string): Promise<void> {
+    try {
+      const cart = await api.removeCartItem(productId);
+      saveLocalCart({ items: [], cart_id: cart.cart_id });
+      renderCart(cart);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to remove item');
+    }
+  }
+
+  async function load(): Promise<void> {
+    root.innerHTML = '<p class="text-gray-500" data-i18n="cart.loading">Memuat keranjang…</p>';
+    try {
+      const cart = await api.getCart();
+      saveLocalCart({ items: [], cart_id: cart.cart_id });
+      renderCart(cart);
+    } catch (err) {
+      root.innerHTML = `<div class="card p-8 text-center"><p class="mb-4 text-gray-600">${err instanceof Error ? err.message : 'Failed to load cart'}</p><button class="btn-secondary" id="retry" data-i18n="common.retry">Coba Lagi</button></div>`;
+      document.getElementById('retry')?.addEventListener('click', load);
+    }
+  }
+
+  load();
+</script>

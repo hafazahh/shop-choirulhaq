@@ -1,0 +1,205 @@
+---
+// product/[slug].astro — product detail page.
+// getStaticPaths fetches active products from the API at build time, so each
+// page is fully server-rendered: meta tags, canonical, OG, and JSON-LD are
+// all in the static HTML.
+import ShopLayout from '../../layouts/ShopLayout.astro';
+
+const API = process.env.SHOP_API_ORIGIN ?? 'http://localhost:8787';
+
+export async function getStaticPaths() {
+  interface Product {
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    short_description: string | null;
+    price_cents: number;
+    currency: string;
+    category: string | null;
+    thumbnail_url: string | null;
+    screenshots: string[];
+    features: string[];
+    external_url: string | null;
+    is_real: number;
+    active: number;
+    sort_order: number;
+    seo_title: string | null;
+    seo_description: string | null;
+    created_at: string;
+    updated_at: string;
+  }
+
+  let products: Product[] = [];
+  try {
+    // NOTE: module-level consts are not visible inside the prerender chunk —
+    // read the env var inline here.
+    const apiOrigin = process.env.SHOP_API_ORIGIN ?? 'http://localhost:8787';
+    const res = await fetch(`${apiOrigin}/api/products`);
+    if (res.ok) products = ((await res.json()) as { products: Product[] }).products;
+    else console.warn(`[shop] product API returned ${res.status} — no product pages generated`);
+  } catch (err) {
+    console.warn('[shop] product API unreachable at build time — no product pages generated', err);
+  }
+
+  return products.map((p) => ({ params: { slug: p.slug }, props: { product: p } }));
+}
+
+const { product } = Astro.props as { product: Product };
+const { slug } = Astro.params as { slug: string };
+
+const seoTitle = product.seo_title ?? `${product.name} — choirulhaq shop`;
+const seoDescription =
+  product.seo_description ?? product.short_description ?? `${product.name} — digital product by Choirul Haq.`;
+const pageUrl = new URL(`/product/${slug}`, Astro.site ?? 'https://shop.choirulhaq.com');
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Product',
+  name: product.name,
+  description: product.description ?? product.short_description ?? '',
+  ...(product.category ? { category: product.category } : {}),
+  offers: {
+    '@type': 'Offer',
+    price: (product.price_cents / 100).toFixed(2),
+    priceCurrency: product.currency,
+    availability: product.is_real
+      ? 'https://schema.org/InStock'
+      : 'https://schema.org/PreOrder',
+    url: pageUrl.href,
+  },
+  ...(product.external_url ? { sameAs: product.external_url } : {}),
+};
+---
+<ShopLayout title={seoTitle} description={seoDescription}>
+  <a href="/" class="mb-6 inline-block text-sm font-medium text-brand-600 hover:underline" data-i18n="product.back">
+    ← Kembali ke daftar produk
+  </a>
+
+  <div class="grid gap-10 lg:grid-cols-2">
+    <div class="card flex min-h-80 items-center justify-center bg-gradient-to-br from-brand-500 to-indigo-600 text-white">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-32 w-32 opacity-80">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    </div>
+
+    <div class="flex flex-col gap-4">
+      <div class="flex flex-wrap items-center gap-2">
+        {product.category && (
+          <span class="badge bg-gray-100 text-gray-700" data-i18n={`cat.${product.category}`}>{product.category}</span>
+        )}
+        {!product.is_real && (
+          <span class="badge bg-amber-100 text-amber-800" data-i18n="index.coming_soon">Segera Hadir</span>
+        )}
+      </div>
+
+      <h1 class="text-3xl font-extrabold tracking-tight text-gray-900">{product.name}</h1>
+      {product.short_description && <p class="text-lg text-gray-600">{product.short_description}</p>}
+
+      <p class="text-3xl font-extrabold text-gray-900">
+        {new Intl.NumberFormat('en-US', { style: 'currency', currency: product.currency }).format(product.price_cents / 100)}
+      </p>
+
+      {product.is_real ? (
+        <div class="flex flex-wrap gap-3">
+          <button id="add-to-cart" data-product-id={product.id} class="btn-primary" data-i18n="index.add_cart">Tambah ke Keranjang</button>
+          <a href="/cart" class="btn-secondary" data-i18n="cart.checkout">Lanjut ke Checkout</a>
+        </div>
+      ) : (
+        <p class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" data-i18n="product.not_real_notice">
+          Produk ini segera hadir. Checkout belum tersedia untuk produk demo.
+        </p>
+      )}
+
+      {product.external_url && (
+        <div class="flex flex-wrap items-center gap-3">
+          {/* Gumroad overlay: opens the Gumroad product page as an on-page
+              modal (gumroad.js binds .gumroad-button), keeping the buyer on
+              our domain until they choose "Add to cart" → Gumroad checkout. */}
+          <a
+            href={product.external_url}
+            class="btn-primary gumroad-button"
+            data-gumroad-single-product="true"
+            data-i18n="index.external_buy"
+          >
+            Beli di Gumroad
+          </a>
+          <a
+            href={product.external_url}
+            target="_blank"
+            rel="noopener noreferrer nofollow sponsored"
+            class="text-sm text-gray-500 hover:underline"
+            data-i18n="gumroad.open_tab"
+          >
+            Buka di tab baru
+          </a>
+        </div>
+      )}
+    </div>
+  </div>
+
+  {product.description && (
+    <section class="mt-12">
+      <h2 class="mb-3 text-xl font-bold text-gray-900" data-i18n="product.description">Deskripsi</h2>
+      <div class="prose max-w-none whitespace-pre-line text-gray-700">{product.description}</div>
+    </section>
+  )}
+
+  {product.features.length > 0 && (
+    <section class="mt-12">
+      <h2 class="mb-3 text-xl font-bold text-gray-900" data-i18n="product.features">Fitur</h2>
+      <ul class="grid gap-2 sm:grid-cols-2">
+        {product.features.map((f) => (
+          <li class="flex items-start gap-2 text-gray-700">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 h-5 w-5 shrink-0 text-brand-600">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            {f}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {product.screenshots.length > 0 && (
+    <section class="mt-12">
+      <h2 class="mb-3 text-xl font-bold text-gray-900" data-i18n="product.screenshots">Screenshot</h2>
+      <div class="grid gap-4 sm:grid-cols-2">
+        {product.screenshots.map((src) => (
+          <img src={src} alt={`${product.name} screenshot`} loading="lazy" class="rounded-xl border border-gray-200" />
+        ))}
+      </div>
+    </section>
+  )}
+
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+</ShopLayout>
+
+<script>
+  import { api } from '../../lib/api';
+  import { addLocalItem, saveLocalCart } from '../../lib/cart';
+
+  const btn = document.getElementById('add-to-cart') as HTMLButtonElement | null;
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      const productId = btn.getAttribute('data-product-id')!;
+      btn.disabled = true;
+      try {
+        const cart = await api.addToCart(productId, 1);
+        addLocalItem(productId, 1);
+        saveLocalCart({ items: [], cart_id: cart.cart_id });
+        const badge = document.getElementById('cart-count');
+        if (badge) {
+          badge.textContent = String(cart.item_count);
+          badge.style.display = 'flex';
+        }
+        window.location.href = '/cart';
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to add to cart');
+        btn.disabled = false;
+      }
+    });
+  }
+</script>

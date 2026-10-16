@@ -1,0 +1,397 @@
+---
+// admin/index.astro — admin panel: D1 login (session cookie), product CRUD,
+// order management (status + notes), demo-product seeding.
+import ShopLayout from '../../layouts/ShopLayout.astro';
+---
+<ShopLayout title="Admin Panel — choirulhaq shop" description="Manage products and orders.">
+  <div id="admin-root">
+    <p class="text-gray-500" data-i18n="common.loading">Memuat…</p>
+  </div>
+</ShopLayout>
+
+<script>
+  import { api, formatPrice, type Order, type Product } from '../../lib/api';
+  import { ADMIN_EMAIL } from '../../lib/constants';
+
+  const root = document.getElementById('admin-root')!;
+
+  function esc(s: string): string {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  }
+
+  const emptyProduct = {
+    name: '', slug: '', description: '', short_description: '', price_cents: 0,
+    category: '', thumbnail_url: '', features: [] as string[], screenshots: [] as string[],
+    external_url: '', is_real: 0, active: 1, sort_order: 0, seo_title: '', seo_description: '',
+  };
+
+  // ---------- Login ----------
+
+  function renderLogin(error = ''): void {
+    root.innerHTML = `
+      <div class="mx-auto max-w-sm">
+        <div class="card p-8">
+          <h1 class="mb-1 text-2xl font-extrabold text-gray-900" data-i18n="admin.title">Admin Panel</h1>
+          <p class="mb-6 text-sm text-gray-500" data-i18n="admin.login_subtitle">Masuk untuk mengelola produk dan pesanan</p>
+          <form id="login-form" class="flex flex-col gap-4">
+            <div>
+              <label for="email" class="label" data-i18n="admin.email">Email</label>
+              <input id="email" type="email" required class="input" value="${ADMIN_EMAIL}" autocomplete="username" />
+            </div>
+            <div>
+              <label for="password" class="label" data-i18n="admin.password">Kata Sandi</label>
+              <input id="password" type="password" required class="input" autocomplete="current-password" />
+            </div>
+            <button type="submit" id="login-btn" class="btn-primary" data-i18n="admin.signin">Masuk</button>
+            ${error ? `<p class="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">${esc(error)}</p>` : ''}
+          </form>
+        </div>
+      </div>`;
+
+    document.getElementById('login-form')!.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const btn = document.getElementById('login-btn') as HTMLButtonElement;
+      btn.disabled = true;
+      btn.textContent = 'Memproses…';
+      try {
+        await api.adminLogin(
+          (document.getElementById('email') as HTMLInputElement).value,
+          (document.getElementById('password') as HTMLInputElement).value
+        );
+        await boot();
+      } catch (err) {
+        renderLogin(err instanceof Error ? err.message : 'Login failed');
+      }
+    });
+  }
+
+  // ---------- Dashboard ----------
+
+  let productsCache: Product[] = [];
+  let ordersCache: Order[] = [];
+  let editingId: string | null = null;
+
+  function renderDashboard(): void {
+    root.innerHTML = `
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-extrabold text-gray-900" data-i18n="admin.welcome">Selamat datang kembali</h1>
+          <p class="text-sm text-gray-500" data-i18n="admin.title">Admin Panel</p>
+        </div>
+        <button id="logout-btn" class="btn-secondary" data-i18n="admin.logout">Keluar</button>
+      </div>
+
+      <div class="mb-6 flex gap-2 border-b border-gray-200">
+        <button id="tab-products" class="tab-btn border-b-2 border-brand-600 px-4 py-2 text-sm font-semibold text-brand-700" data-i18n="admin.tab_products">Produk</button>
+        <button id="tab-orders" class="tab-btn border-b-2 border-transparent px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700" data-i18n="admin.tab_orders">Pesanan</button>
+      </div>
+
+      <section id="panel-products"></section>
+      <section id="panel-orders" class="hidden"></section>`;
+
+    document.getElementById('logout-btn')!.addEventListener('click', async () => {
+      await api.adminLogout();
+      renderLogin();
+    });
+    document.getElementById('tab-products')!.addEventListener('click', () => switchTab('products'));
+    document.getElementById('tab-orders')!.addEventListener('click', () => switchTab('orders'));
+    switchTab('products');
+  }
+
+  function switchTab(tab: 'products' | 'orders'): void {
+    const prodTab = document.getElementById('tab-products')!;
+    const ordTab = document.getElementById('tab-orders')!;
+    prodTab.className = `tab-btn border-b-2 ${tab === 'products' ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'} px-4 py-2 text-sm font-semibold`;
+    ordTab.className = `tab-btn border-b-2 ${tab === 'orders' ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'} px-4 py-2 text-sm font-semibold`;
+    document.getElementById('panel-products')!.classList.toggle('hidden', tab !== 'products');
+    document.getElementById('panel-orders')!.classList.toggle('hidden', tab !== 'orders');
+    if (tab === 'products') renderProducts();
+    else renderOrders();
+  }
+
+  // ---------- Products tab ----------
+
+  function productForm(p = emptyProduct): string {
+    return `
+      <form id="product-form" class="card flex flex-col gap-3 p-6">
+        <h3 class="font-bold text-gray-900" data-i18n="${editingId ? 'admin.edit_product' : 'admin.add_product'}">${editingId ? 'Edit Produk' : 'Tambah Produk'}</h3>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="label" data-i18n="admin.name">Nama Produk</label>
+            <input id="pf-name" class="input" required value="${esc(p.name)}" />
+          </div>
+          <div>
+            <label class="label" data-i18n="admin.slug">Slug</label>
+            <input id="pf-slug" class="input" required pattern="[a-z0-9-]+" value="${esc(p.slug)}" ${editingId ? 'disabled' : ''} />
+            <p class="mt-1 text-xs text-gray-400" data-i18n="admin.slug_hint">untuk URL /product/&lt;slug&gt;</p>
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="label" data-i18n="admin.price">Harga (USD, sen)</label>
+            <input id="pf-price" type="number" min="0" step="1" class="input" value="${p.price_cents}" />
+          </div>
+          <div>
+            <label class="label" data-i18n="admin.category">Kategori</label>
+            <input id="pf-category" class="input" list="cat-list" value="${esc(p.category ?? '')}" placeholder="software / templates / ebooks" />
+            <datalist id="cat-list">
+              <option value="software"></option><option value="templates"></option><option value="ebooks"></option>
+            </datalist>
+          </div>
+        </div>
+        <div>
+          <label class="label" data-i18n="admin.short_desc">Deskripsi Singkat</label>
+          <input id="pf-short" class="input" value="${esc(p.short_description ?? '')}" />
+        </div>
+        <div>
+          <label class="label" data-i18n="admin.description">Deskripsi</label>
+          <textarea id="pf-desc" rows="3" class="input">${esc(p.description ?? '')}</textarea>
+        </div>
+        <div>
+          <label class="label" data-i18n="admin.features">Fitur (satu per baris)</label>
+          <textarea id="pf-features" rows="3" class="input">${esc((p.features ?? []).join('\n'))}</textarea>
+        </div>
+        <div>
+          <label class="label" data-i18n="admin.screenshots">Screenshot (satu URL per baris)</label>
+          <textarea id="pf-screens" rows="2" class="input">${esc((p.screenshots ?? []).join('\n'))}</textarea>
+        </div>
+        <div>
+          <label class="label" data-i18n="admin.external">URL External (Gumroad, dll)</label>
+          <input id="pf-external" class="input" value="${esc(p.external_url ?? '')}" />
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="label" data-i18n="admin.seo_title">SEO Title</label>
+            <input id="pf-seo-title" class="input" value="${esc(p.seo_title ?? '')}" />
+          </div>
+          <div>
+            <label class="label" data-i18n="admin.seo_desc">SEO Description</label>
+            <input id="pf-seo-desc" class="input" value="${esc(p.seo_description ?? '')}" />
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-5">
+          <label class="flex items-center gap-2 text-sm text-gray-700">
+            <input id="pf-real" type="checkbox" ${p.is_real ? 'checked' : ''} class="h-4 w-4 rounded border-gray-300" />
+            <span data-i18n="admin.is_real">Produk Bisa Dibeli (bukan demo)</span>
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-700">
+            <input id="pf-active" type="checkbox" ${p.active ? 'checked' : ''} class="h-4 w-4 rounded border-gray-300" />
+            <span data-i18n="admin.active">Aktif</span>
+          </label>
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="btn-primary" data-i18n="admin.save">Simpan</button>
+          ${editingId ? '<button type="button" id="pf-cancel" class="btn-secondary" data-i18n="admin.cancel">Batal</button>' : ''}
+        </div>
+        <p id="pf-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700"></p>
+      </form>`;
+  }
+
+  function renderProducts(): void {
+    const panel = document.getElementById('panel-products')!;
+    panel.innerHTML = `
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-lg font-bold text-gray-900" data-i18n="admin.tab_products">Produk</h2>
+        <button id="seed-btn" class="btn-secondary text-sm">🌱 <span data-i18n="admin.seed">Seed Produk Demo</span></button>
+      </div>
+      <div class="mb-6" id="form-slot"></div>
+      <div class="overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr>
+              <th class="px-4 py-3" data-i18n="admin.name">Nama Produk</th>
+              <th class="px-4 py-3" data-i18n="admin.price">Harga (USD, sen)</th>
+              <th class="px-4 py-3" data-i18n="admin.category">Kategori</th>
+              <th class="px-4 py-3">Status</th>
+              <th class="px-4 py-3 text-right" data-i18n="admin.actions">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            ${productsCache.length === 0 ? `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500" data-i18n="admin.products_empty">Belum ada produk. Tambahkan produk pertama atau seed produk demo.</td></tr>` : ''}
+            ${productsCache.map((p) => `
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3">
+                  <a href="/product/${p.slug}" target="_blank" class="font-medium text-brand-600 hover:underline">${esc(p.name)}</a>
+                  <span class="block text-xs text-gray-400">/product/${esc(p.slug)}</span>
+                </td>
+                <td class="px-4 py-3">${formatPrice(p.price_cents, p.currency)}</td>
+                <td class="px-4 py-3">${esc(p.category ?? '—')}</td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap gap-1">
+                    ${!p.active ? '<span class="badge bg-gray-100 text-gray-600">inactive</span>' : '<span class="badge bg-green-100 text-green-700">active</span>'}
+                    ${p.is_real ? '<span class="badge bg-blue-100 text-blue-700">purchasable</span>' : '<span class="badge bg-amber-100 text-amber-800">coming soon</span>'}
+                  </div>
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <button class="btn-secondary px-2 py-1 text-xs pf-edit" data-id="${p.id}">✏️ <span data-i18n="admin.edit_product">Edit Produk</span></button>
+                  <button class="btn-danger px-2 py-1 text-xs pf-del" data-id="${p.id}">🗑 <span data-i18n="admin.delete">Hapus</span></button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+    // wire form (create mode by default; edit mode fills it)
+    const formSlot = document.getElementById('form-slot')!;
+    formSlot.innerHTML = productForm(editingId ? productsCache.find((p) => p.id === editingId) ?? emptyProduct : emptyProduct);
+    wireProductForm();
+
+    panel.querySelectorAll<HTMLButtonElement>('.pf-edit').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        editingId = btn.getAttribute('data-id')!;
+        renderProducts();
+        document.getElementById('form-slot')!.scrollIntoView({ behavior: 'smooth' });
+      })
+    );
+    panel.querySelectorAll<HTMLButtonElement>('.pf-del').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this product?')) return;
+        try {
+          await api.adminDeleteProduct(btn.getAttribute('data-id')!);
+          await refreshProducts();
+        } catch (err) {
+          alert(err instanceof Error ? err.message : 'Delete failed');
+        }
+      })
+    );
+
+    const seedBtn = document.getElementById('seed-btn')!;
+    seedBtn.addEventListener('click', async () => {
+      if (!confirm('Seed the 4 demo products? Existing demo rows are updated.')) return;
+      try {
+        const res = await api.adminSeedProducts();
+        alert(res.seeded + ' demo products seeded.');
+        await refreshProducts();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Seed failed');
+      }
+    });
+  }
+
+  function wireProductForm(): void {
+    const form = document.getElementById('product-form')!;
+    const errBox = document.getElementById('pf-error')!;
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      errBox.classList.add('hidden');
+      const input: Record<string, unknown> = {
+        name: (document.getElementById('pf-name') as HTMLInputElement).value,
+        price_cents: Number((document.getElementById('pf-price') as HTMLInputElement).value) || 0,
+        category: (document.getElementById('pf-category') as HTMLInputElement).value || null,
+        short_description: (document.getElementById('pf-short') as HTMLInputElement).value || null,
+        description: (document.getElementById('pf-desc') as HTMLTextAreaElement).value || null,
+        features: (document.getElementById('pf-features') as HTMLTextAreaElement).value.split('\n').map((s) => s.trim()).filter(Boolean),
+        screenshots: (document.getElementById('pf-screens') as HTMLTextAreaElement).value.split('\n').map((s) => s.trim()).filter(Boolean),
+        external_url: (document.getElementById('pf-external') as HTMLInputElement).value || null,
+        seo_title: (document.getElementById('pf-seo-title') as HTMLInputElement).value || null,
+        seo_description: (document.getElementById('pf-seo-desc') as HTMLInputElement).value || null,
+        is_real: (document.getElementById('pf-real') as HTMLInputElement).checked ? 1 : 0,
+        active: (document.getElementById('pf-active') as HTMLInputElement).checked ? 1 : 0,
+      };
+      try {
+        if (editingId) {
+          await api.adminUpdateProduct(editingId, input);
+          editingId = null;
+        } else {
+          input.slug = (document.getElementById('pf-slug') as HTMLInputElement).value;
+          await api.adminCreateProduct(input);
+          editingId = null;
+        }
+        await refreshProducts();
+      } catch (err) {
+        errBox.textContent = err instanceof Error ? err.message : 'Save failed';
+        errBox.classList.remove('hidden');
+      }
+    });
+    document.getElementById('pf-cancel')?.addEventListener('click', () => {
+      editingId = null;
+      renderProducts();
+    });
+  }
+
+  async function refreshProducts(): Promise<void> {
+    const res = await api.adminListProducts();
+    productsCache = res.products;
+    renderProducts();
+  }
+
+  // ---------- Orders tab ----------
+
+  function renderOrders(): void {
+    const panel = document.getElementById('panel-orders')!;
+    panel.innerHTML = `
+      <h2 class="mb-4 text-lg font-bold text-gray-900" data-i18n="admin.tab_orders">Pesanan</h2>
+      <div class="overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr>
+              <th class="px-4 py-3" data-i18n="order.id">ID Pesanan</th>
+              <th class="px-4 py-3" data-i18n="admin.customer">Pembeli</th>
+              <th class="px-4 py-3" data-i18n="admin.total">Total</th>
+              <th class="px-4 py-3" data-i18n="order.status">Status</th>
+              <th class="px-4 py-3" data-i18n="admin.date">Tanggal</th>
+              <th class="px-4 py-3 text-right" data-i18n="admin.actions">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            ${ordersCache.length === 0 ? `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500" data-i18n="admin.orders_empty">Belum ada pesanan.</td></tr>` : ''}
+            ${ordersCache.map((o) => `
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 font-mono text-xs">${esc(o.id)}</td>
+                <td class="px-4 py-3">
+                  <span class="block font-medium text-gray-900">${esc(o.customer_name ?? '—')}</span>
+                  <span class="block text-xs text-gray-500">${esc(o.customer_email)}</span>
+                  <span class="block text-xs text-gray-400">${o.items.map((i) => `${esc(i.name)} ×${i.qty}`).join(', ')}</span>
+                </td>
+                <td class="px-4 py-3 font-semibold">${formatPrice(o.total_cents, o.currency)}</td>
+                <td class="px-4 py-3">
+                  <select class="input w-40 py-1 text-xs ord-status" data-id="${o.id}">
+                    ${['pending', 'paid', 'delivered', 'cancelled', 'refunded'].map((s) =>
+                      `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                  </select>
+                  ${o.payment_proof ? '<span class="mt-1 block text-xs text-blue-600">payment confirmed by customer</span>' : ''}
+                </td>
+                <td class="px-4 py-3 text-xs text-gray-500">${esc(o.created_at)}</td>
+                <td class="px-4 py-3 text-right">
+                  <button class="btn-secondary px-2 py-1 text-xs ord-save" data-id="${o.id}">💾 <span data-i18n="admin.save">Simpan</span></button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+    panel.querySelectorAll<HTMLButtonElement>('.ord-save').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id')!;
+        const status = (panel.querySelector<HTMLSelectElement>(`.ord-status[data-id="${id}"]`)!).value;
+        try {
+          await api.adminUpdateOrder(id, { status });
+          const res = await api.adminListOrders();
+          ordersCache = res.orders;
+          renderOrders();
+        } catch (err) {
+          alert(err instanceof Error ? err.message : 'Update failed');
+        }
+      })
+    );
+  }
+
+  async function refreshOrders(): Promise<void> {
+    const res = await api.adminListOrders();
+    ordersCache = res.orders;
+  }
+
+  // ---------- Boot ----------
+
+  async function boot(): Promise<void> {
+    try {
+      await api.adminMe();
+      await Promise.all([refreshProducts(), refreshOrders()]);
+      renderDashboard();
+    } catch {
+      renderLogin();
+    }
+  }
+
+  boot();
+</script>
